@@ -8,6 +8,9 @@ from tensorflow.keras.models import Model as KerasModel
 
 from text_recognizer.models.line_model import LineModel
 from text_recognizer.networks.lenet import lenet
+from text_recognizer.networks.skip_conn_convs import skip_conn_convs
+from text_recognizer.networks.skip_conn_convs_large import skip_conn_convs_large
+
 from text_recognizer.networks.misc import slide_window
 from text_recognizer.networks.ctc import ctc_decode
 
@@ -45,14 +48,18 @@ def line_lstm_ctc(input_shape, output_shape, window_width=28, window_stride=14):
     # (num_windows, image_height, window_width, 1)
 
     # Make a LeNet and get rid of the last two layers (softmax and dropout)
-    convnet = lenet((image_height, window_width, 1), (num_classes,))
-    convnet = KerasModel(inputs=convnet.inputs, outputs=convnet.layers[-2].output)
+    #convnet = lenet((image_height, window_width, 1), (num_classes,))
+    #convnet = KerasModel(inputs=convnet.inputs, outputs=convnet.layers[-2].output)
+    convnet = skip_conn_convs_large((image_height, window_width, 1), (num_classes,))
     convnet_outputs = TimeDistributed(convnet)(image_patches)
     # (num_windows, 128)
-
-    lstm_output = lstm_fn(128, return_sequences=True)(convnet_outputs)
+    convnet_outputs = Dropout(0.5)(convnet_outputs)
+    
+    #lstm_output = lstm_fn(128, return_sequences=True)(convnet_outputs)
+    lstm_output = Bidirectional(lstm_fn(128, return_sequences=True))(convnet_outputs)
     # (num_windows, 128)
-
+    
+    lstm_output = Dropout(0.5)(lstm_output)
     softmax_output = Dense(num_classes, activation='softmax', name='softmax_output')(lstm_output)
     # (num_windows, num_classes)
     ##### Your code above (Lab 3)
